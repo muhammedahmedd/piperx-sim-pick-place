@@ -1,0 +1,9 @@
+build/
+install/
+log/
+.vscode/
+*.pyc
+__pycache__/
+
+# External dependency
+src/agx_arm_sim/
