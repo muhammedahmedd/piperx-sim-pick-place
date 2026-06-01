@@ -8,27 +8,66 @@ PiperXSimControl::PiperXSimControl() : Node("piperx_sim_control")
 
   has_marker_pose_ = false;
 
+  required_marker_samples_ = 20;
+  marker_sample_count_ = 0;
+
+  marker_sum_x_ = 0.0;
+  marker_sum_y_ = 0.0;
+  marker_sum_z_ = 0.0;
+
   marker_pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
     "/aruco/marker_pose_base",
-    10,
+    1,
     std::bind(&PiperXSimControl::markerPoseCallback, this, std::placeholders::_1)
   );
 }
 
 void PiperXSimControl::markerPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
 {
-  marker_pose_ = *msg;
+  if (current_state_ != PickState::WAIT_FOR_MARKER)
+  {
+    return;
+  }
 
-  has_marker_pose_ = true;
+  if (has_marker_pose_)
+  {
+    return;
+  }
+
+  marker_sum_x_ += msg->pose.position.x;
+  marker_sum_y_ += msg->pose.position.y;
+  marker_sum_z_ += msg->pose.position.z;
+
+  marker_sample_count_++;
 
   RCLCPP_INFO(
     this->get_logger(),
-    "Marker pose in %s: x=%.3f, y=%.3f, z=%.3f",
-    msg->header.frame_id.c_str(),
+    "Collected marker sample %d/%d: x=%.3f, y=%.3f, z=%.3f",
+    marker_sample_count_,
+    required_marker_samples_,
     msg->pose.position.x,
     msg->pose.position.y,
     msg->pose.position.z
   );
+
+  if (marker_sample_count_ == required_marker_samples_)
+  {
+    marker_pose_ = *msg;
+
+    marker_pose_.pose.position.x = marker_sum_x_ / marker_sample_count_;
+    marker_pose_.pose.position.y = marker_sum_y_ / marker_sample_count_;
+    marker_pose_.pose.position.z = marker_sum_z_ / marker_sample_count_;
+
+    has_marker_pose_ = true;
+
+    RCLCPP_INFO(
+      this->get_logger(),
+      "Marker average ready: x=%.3f, y=%.3f, z=%.3f",
+      marker_pose_.pose.position.x,
+      marker_pose_.pose.position.y,
+      marker_pose_.pose.position.z
+    );
+  }
 }
 
 void PiperXSimControl::initializeMoveIt()
@@ -49,6 +88,9 @@ void PiperXSimControl::runStateMachine()
 
       moveArmJoints(scan_pose_joints_);
 
+      RCLCPP_INFO(this->get_logger(), "Waiting for arm/camera to settle...");
+      rclcpp::sleep_for(std::chrono::seconds(3));
+
       current_state_ = PickState::OPEN_GRIPPER;
 
       break;
@@ -67,13 +109,12 @@ void PiperXSimControl::runStateMachine()
 
       if (has_marker_pose_)
       {
-        target_marker_pose_ = marker_pose_;
         RCLCPP_INFO(
           this->get_logger(),
           "Target marker pose frozen: x=%.3f, y=%.3f, z=%.3f",
-          target_marker_pose_.pose.position.x,
-          target_marker_pose_.pose.position.y,
-          target_marker_pose_.pose.position.z
+          marker_pose_.pose.position.x,
+          marker_pose_.pose.position.y,
+          marker_pose_.pose.position.z
         );
 
         current_state_ = PickState::MOVE_TO_PICK;
@@ -128,12 +169,18 @@ int main(int argc, char ** argv)
 
   node->initializeMoveIt();
 
-  node->runStateMachine();
-  node->runStateMachine();
+  node->runStateMachine();  // MOVE_TO_SCAN
+  node->runStateMachine();  // OPEN_GRIPPER, then state becomes WAIT_FOR_MARKER
 
-  rclcpp::spin_some(node);
+  rclcpp::Rate rate(30);
 
-  node->runStateMachine();
+  for (int i = 0; i < 200; i++)
+  {
+    rclcpp::spin_some(node);
+    rate.sleep();
+  }
+
+  node->runStateMachine();  // WAIT_FOR_MARKER: freeze averaged marker pose if ready
 
   rclcpp::shutdown();
   

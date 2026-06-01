@@ -41,9 +41,14 @@ private:
 
   geometry_msgs::msg::PoseStamped marker_pose_;
 
-  geometry_msgs::msg::PoseStamped target_marker_pose_;
-
   bool has_marker_pose_;
+
+  int required_marker_samples_;
+  int marker_sample_count_;
+
+  double marker_sum_x_;
+  double marker_sum_y_;
+  double marker_sum_z_;
 
   std::shared_ptr<moveit::planning_interface::MoveGroupInterface> arm_group_;
 
