@@ -39,6 +39,12 @@ private:
 
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr marker_pose_sub_;
 
+  geometry_msgs::msg::PoseStamped marker_pose_;
+
+  geometry_msgs::msg::PoseStamped target_marker_pose_;
+
+  bool has_marker_pose_;
+
   std::shared_ptr<moveit::planning_interface::MoveGroupInterface> arm_group_;
 
   std::shared_ptr<moveit::planning_interface::MoveGroupInterface> gripper_group_;

@@ -6,10 +6,28 @@ PiperXSimControl::PiperXSimControl() : Node("piperx_sim_control")
 
   current_state_ = PickState::MOVE_TO_SCAN;
 
+  has_marker_pose_ = false;
+
   marker_pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
     "/aruco/marker_pose_base",
     10,
     std::bind(&PiperXSimControl::markerPoseCallback, this, std::placeholders::_1)
+  );
+}
+
+void PiperXSimControl::markerPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
+{
+  marker_pose_ = *msg;
+
+  has_marker_pose_ = true;
+
+  RCLCPP_INFO(
+    this->get_logger(),
+    "Marker pose in %s: x=%.3f, y=%.3f, z=%.3f",
+    msg->header.frame_id.c_str(),
+    msg->pose.position.x,
+    msg->pose.position.y,
+    msg->pose.position.z
   );
 }
 
@@ -42,7 +60,30 @@ void PiperXSimControl::runStateMachine()
 
       current_state_ = PickState::WAIT_FOR_MARKER;
 
-      break;  
+      break; 
+    
+    case PickState::WAIT_FOR_MARKER:
+      RCLCPP_INFO(this->get_logger(), "State: WAIT_FOR_MARKER");
+
+      if (has_marker_pose_)
+      {
+        target_marker_pose_ = marker_pose_;
+        RCLCPP_INFO(
+          this->get_logger(),
+          "Target marker pose frozen: x=%.3f, y=%.3f, z=%.3f",
+          target_marker_pose_.pose.position.x,
+          target_marker_pose_.pose.position.y,
+          target_marker_pose_.pose.position.z
+        );
+
+        current_state_ = PickState::MOVE_TO_PICK;
+      }
+      else
+      {
+        RCLCPP_INFO(this->get_logger(), "No marker pose yet. Staying in WAIT_FOR_MARKER.");
+      }
+
+      break;
 
     default:
       RCLCPP_INFO(this->get_logger(), "State not implemented yet.");
@@ -50,19 +91,6 @@ void PiperXSimControl::runStateMachine()
       break;
   }
 }
-
-void PiperXSimControl::markerPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
-{
-  RCLCPP_INFO(
-    this->get_logger(),
-    "Marker pose in %s: x=%.3f, y=%.3f, z=%.3f",
-    msg->header.frame_id.c_str(),
-    msg->pose.position.x,
-    msg->pose.position.y,
-    msg->pose.position.z
-  );
-}
-
 
 void PiperXSimControl::moveArmJoints(const std::vector<double> & joint_angles)
 {
@@ -101,8 +129,11 @@ int main(int argc, char ** argv)
   node->initializeMoveIt();
 
   node->runStateMachine();
+  node->runStateMachine();
 
-  rclcpp::spin(node);
+  rclcpp::spin_some(node);
+
+  node->runStateMachine();
 
   rclcpp::shutdown();
   

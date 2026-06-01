@@ -8,10 +8,10 @@ import cv2.aruco as aruco
 
 from cv_bridge import CvBridge
 from rclpy.node import Node
-from rclpy.time import Time
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import PoseStamped
 from scipy.spatial.transform import Rotation
+from rclpy.time import Time
 from rclpy.duration import Duration
 from tf_transformations import quaternion_matrix, quaternion_from_matrix
 
@@ -135,10 +135,12 @@ class ArucoSimDetector(Node):
 
     def publish_marker_pose_base(self, marker_id, rvec, tvec, image_msg):
         try:
+            image_time = Time.from_msg(image_msg.header.stamp)
+
             tf_base_camera = self.tf_buffer.lookup_transform(
                 "base_link",
                 "Camera",
-                Time(),
+                image_time,
                 timeout=Duration(seconds=0.5)
             )
         except Exception as e:
@@ -169,7 +171,7 @@ class ArucoSimDetector(Node):
         T_optical_marker[1, 3] = tvec[1]
         T_optical_marker[2, 3] = tvec[2]
 
-        # mapping the marker pose from the camera optical frame into the base_link frame
+        # mapping the marker pose from the camera frame into the base_link frame
         T_base_marker = T_base_camera @ T_optical_marker
 
         quat_base_marker = quaternion_from_matrix(T_base_marker)
