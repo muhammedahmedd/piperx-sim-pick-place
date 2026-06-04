@@ -21,7 +21,7 @@ public:
 
   void moveTcpToMarker();
 
-  void moveToScanPose(); 
+  void moveArmJoints(const std::vector<double> & joint_angles);
 
   void moveGripperJoints(const std::vector<double> & joint_angles);
 
@@ -61,6 +61,8 @@ private:
   moveit::planning_interface::MoveGroupInterface::Plan arm_plan_;
 
   moveit::planning_interface::MoveGroupInterface::Plan gripper_plan_;
+
+  std::vector<double> scan_pose_joints_ = {0.0, 0.373, -1.283, 1.315, 0.0, 0.0};
 
   std::vector<double> gripper_open_joints_ = {0.050, -0.050};
 

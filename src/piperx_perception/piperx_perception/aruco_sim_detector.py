@@ -95,6 +95,7 @@ class ArucoSimDetector(Node):
         else:
             return
         
+        
         rvecs, tvecs, _ = aruco.estimatePoseSingleMarkers(
             corners,
             self.marker_size,
