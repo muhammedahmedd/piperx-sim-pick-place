@@ -77,7 +77,7 @@ class ArucoSimDetector(Node):
         if self.camera_matrix is None:
             self.get_logger().warn("Waiting for /isaac/camera_info...")
             return
-        
+
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding="rgb8")
 
         # debug_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)

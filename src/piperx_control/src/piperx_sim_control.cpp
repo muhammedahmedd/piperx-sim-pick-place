@@ -9,7 +9,7 @@ PiperXSimControl::PiperXSimControl() : Node("piperx_sim_control")
 
   has_marker_pose_ = false;
 
-  required_marker_samples_ = 25;
+  required_marker_samples_ = 40;
   marker_sample_count_ = 0;
 
   marker_sum_x_ = 0.0;
@@ -74,11 +74,6 @@ void PiperXSimControl::initializeMoveIt()
 
   gripper_group_ = std::make_shared<moveit::planning_interface::MoveGroupInterface>(
     shared_from_this(), "gripper");
-
-  if (!arm_group_->setEndEffectorLink("gripper_tcp"))
-  {
-    RCLCPP_ERROR(this->get_logger(), "Failed to set gripper_tcp as end-effector link.");
-  }
 }
 
 void PiperXSimControl::runStateMachine()
@@ -88,10 +83,10 @@ void PiperXSimControl::runStateMachine()
     case PickState::MOVE_TO_SCAN:
       RCLCPP_INFO(this->get_logger(), "State: MOVE_TO_SCAN");
 
-      moveArmJoints(scan_pose_joints_);
+      moveToScanPose();
 
       RCLCPP_INFO(this->get_logger(), "Waiting for arm/camera to settle...");
-      rclcpp::sleep_for(std::chrono::seconds(8));
+      rclcpp::sleep_for(std::chrono::seconds(15));
 
       current_state_ = PickState::OPEN_GRIPPER;
 
@@ -127,7 +122,7 @@ void PiperXSimControl::runStateMachine()
       RCLCPP_INFO(this->get_logger(), "State: MOVE_TO_PICK");
 
       moveTcpToMarker();
-      rclcpp::sleep_for(std::chrono::seconds(5));
+      rclcpp::sleep_for(std::chrono::seconds(4));
 
       current_state_ = PickState::CLOSE_GRIPPER;
 
@@ -144,7 +139,7 @@ void PiperXSimControl::runStateMachine()
 
     case PickState::LIFT:
 
-      moveArmJoints(scan_pose_joints_);
+      moveToScanPose();
 
       current_state_ = PickState::DONE;
         
@@ -163,11 +158,17 @@ void PiperXSimControl::runStateMachine()
 
 void PiperXSimControl::moveTcpToMarker()
 {
+
+  if (!arm_group_->setEndEffectorLink("gripper_tcp"))
+  {
+    RCLCPP_ERROR(this->get_logger(), "Failed to set gripper_tcp as end-effector link.");
+  }
+
   geometry_msgs::msg::Pose target_pose;
 
   target_pose.position.x = marker_pose_.pose.position.x;
   target_pose.position.y = marker_pose_.pose.position.y;
-  target_pose.position.z = marker_pose_.pose.position.z;
+  target_pose.position.z = marker_pose_.pose.position.z - 0.02;;
 
   target_pose.orientation.x = 0.0;
   target_pose.orientation.y = 1.0;
@@ -190,20 +191,39 @@ void PiperXSimControl::moveTcpToMarker()
   arm_group_->clearPoseTargets();
 }
 
-void PiperXSimControl::moveArmJoints(const std::vector<double> & joint_angles)
+void PiperXSimControl::moveToScanPose()
 {
-  arm_group_->setJointValueTarget(joint_angles);
+  if (!arm_group_->setEndEffectorLink("link6"))
+  {
+    RCLCPP_ERROR(this->get_logger(), "Failed to set end-effector as link6.");
+  }
+
+  geometry_msgs::msg::Pose scan_pose;
+
+  scan_pose.position.x = 0.098;
+  scan_pose.position.y = 0.000;
+  scan_pose.position.z = 0.423;
+
+  scan_pose.orientation.x =  0.609;
+  scan_pose.orientation.y = -0.609;
+  scan_pose.orientation.z =  0.359;
+  scan_pose.orientation.w = -0.359;
+
+  arm_group_->setStartStateToCurrentState();
+  arm_group_->setPoseTarget(scan_pose);
 
   if (arm_group_->plan(arm_plan_) == moveit::core::MoveItErrorCode::SUCCESS)
   {
+    RCLCPP_INFO(this->get_logger(), "Scan pose plan succeeded. Executing...");
     arm_group_->execute(arm_plan_);
   }
-  else 
+  else
   {
-    RCLCPP_ERROR(this->get_logger(), "Arm plan failed");
+    RCLCPP_ERROR(this->get_logger(), "Scan pose plan failed.");
   }
-}
 
+  arm_group_->clearPoseTargets();
+}
 void PiperXSimControl::moveGripperJoints(const std::vector<double> & joint_angles)
 {
   gripper_group_->setJointValueTarget(joint_angles);
