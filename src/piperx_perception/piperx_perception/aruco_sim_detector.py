@@ -10,7 +10,6 @@ from cv_bridge import CvBridge
 from rclpy.node import Node
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import PoseStamped
-from scipy.spatial.transform import Rotation
 from rclpy.time import Time
 from rclpy.duration import Duration
 from tf_transformations import quaternion_matrix, quaternion_from_matrix
@@ -46,16 +45,16 @@ class ArucoSimDetector(Node):
             1
         )
 
-        self.pose_pub = self.create_publisher(
+        self.cube_pose_pub = self.create_publisher(
             PoseStamped,
-            "/aruco/marker_pose",
-            10
+            "/aruco/cube_pose_base",
+            1
         )
 
-        self.pose_base_pub = self.create_publisher(
+        self.place_pose_pub = self.create_publisher(
             PoseStamped,
-            "/aruco/marker_pose_base",
-            10
+            "/aruco/place_pose_base",
+            1
         )
 
         self.tf_buffer = tf2_ros.Buffer()
@@ -95,7 +94,6 @@ class ArucoSimDetector(Node):
         else:
             return
         
-        
         rvecs, tvecs, _ = aruco.estimatePoseSingleMarkers(
             corners,
             self.marker_size,
@@ -103,36 +101,11 @@ class ArucoSimDetector(Node):
             self.dist_coeffs
         )
 
-        marker_id = detected_ids[0]
-        rvec = rvecs[0][0]
-        tvec = tvecs[0][0]
+        for i, marker_id in enumerate(detected_ids):
+            rvec = rvecs[i][0]
+            tvec = tvecs[i][0]
 
-        self.publish_marker_pose(marker_id, rvec, tvec, msg)
-        self.publish_marker_pose_base(marker_id, rvec, tvec, msg)
-
-    def publish_marker_pose(self, marker_id, rvec, tvec, image_msg):
-        rotation_matrix, _ = cv2.Rodrigues(rvec)
-        quat = Rotation.from_matrix(rotation_matrix).as_quat()
-
-        pose_msg = PoseStamped()
-
-        pose_msg.header.stamp = image_msg.header.stamp
-        pose_msg.header.frame_id = image_msg.header.frame_id
-
-        pose_msg.pose.position.x = tvec[0]
-        pose_msg.pose.position.y = tvec[1]
-        pose_msg.pose.position.z = tvec[2]
-
-        pose_msg.pose.orientation.x = quat[0]
-        pose_msg.pose.orientation.y = quat[1]
-        pose_msg.pose.orientation.z = quat[2]
-        pose_msg.pose.orientation.w = quat[3]
-
-        self.pose_pub.publish(pose_msg)
-
-        self.get_logger().info(
-            f"Published marker {marker_id} pose to /aruco/marker_pose"
-        )
+            self.publish_marker_pose_base(marker_id, rvec, tvec, msg)
 
     def publish_marker_pose_base(self, marker_id, rvec, tvec, image_msg):
         try:
@@ -163,17 +136,17 @@ class ArucoSimDetector(Node):
         T_base_camera[1, 3] = t_base_camera.y
         T_base_camera[2, 3] = t_base_camera.z
 
-        # T_optical_marker
-        R_optical_marker, _ = cv2.Rodrigues(rvec)
+        # T_camera_marker
+        R_camera_marker, _ = cv2.Rodrigues(rvec)
         
-        T_optical_marker = np.eye(4)
-        T_optical_marker[0:3, 0:3] = R_optical_marker
-        T_optical_marker[0, 3] = tvec[0]
-        T_optical_marker[1, 3] = tvec[1]
-        T_optical_marker[2, 3] = tvec[2]
+        T_camera_marker = np.eye(4)
+        T_camera_marker[0:3, 0:3] = R_camera_marker
+        T_camera_marker[0, 3] = tvec[0]
+        T_camera_marker[1, 3] = tvec[1]
+        T_camera_marker[2, 3] = tvec[2]
 
         # mapping the marker pose from the camera frame into the base_link frame
-        T_base_marker = T_base_camera @ T_optical_marker
+        T_base_marker = T_base_camera @ T_camera_marker
 
         quat_base_marker = quaternion_from_matrix(T_base_marker)
 
@@ -190,12 +163,16 @@ class ArucoSimDetector(Node):
         pose_msg.pose.orientation.z = quat_base_marker[2]
         pose_msg.pose.orientation.w = quat_base_marker[3]
 
-        self.pose_base_pub.publish(pose_msg)
-
-        self.get_logger().info(
-            f"Published marker {marker_id} pose to /aruco/marker_pose_base"
-        )
-
+        if marker_id == 0:
+            self.cube_pose_pub.publish(pose_msg)
+            self.get_logger().info(
+                "Published cube marker ID 0 pose to /aruco/cube_pose_base"
+            )
+        elif marker_id == 1:
+            self.place_pose_pub.publish(pose_msg)
+            self.get_logger().info(
+                "Published place marker ID 1 pose to /aruco/place_pose_base"
+            )
 
 def main(args=None):
     rclpy.init(args=args)
