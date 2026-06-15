@@ -24,7 +24,7 @@ class ArucoSimDetector(Node):
         self.aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
         self.aruco_params = aruco.DetectorParameters_create()
 
-        # Tuned ArUco marker size to match effective rendered scale
+        # launch-configurable effective marker size for ArUco pose estimation in Isaac
         self.declare_parameter("marker_size", 0.055)
         self.marker_size = self.get_parameter("marker_size").value
 
@@ -102,7 +102,7 @@ class ArucoSimDetector(Node):
         for i, marker_id in enumerate(detected_ids):
             rvec = rvecs[i][0]
             tvec = tvecs[i][0]
- 
+
             self.publish_marker_pose_base(marker_id, rvec, tvec, msg)
 
     def publish_marker_pose_base(self, marker_id, rvec, tvec, image_msg):
@@ -113,7 +113,7 @@ class ArucoSimDetector(Node):
                 "base_link",
                 "Camera",
                 image_time,
-                timeout=Duration(seconds=4.0)
+                timeout=Duration(seconds=2.0)
             )
 
         except Exception as e:
