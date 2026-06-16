@@ -1,0 +1,25 @@
+services:
+  ros2_humble:
+    build: .
+    container_name: ros2_humble
+
+    network_mode: host
+    ipc: host
+    privileged: true
+
+    environment:
+      - DISPLAY=${DISPLAY}
+      - ROS_DOMAIN_ID=0
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+      - ROS_LOCALHOST_ONLY=0
+      - FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - ~/piperx_ws:/workspace/piperx_ws
+      
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+
+    stdin_open: true
+    tty: true
