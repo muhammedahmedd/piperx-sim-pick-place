@@ -4,7 +4,7 @@ This repository contains a ROS 2 Humble pick-and-place project for the Piper X a
 
 In Isaac Sim, the robot detects a cube with an ArUco tag on it, picks it up, and places it on a table at a target location marked by a second ArUco tag. In testing, the average placing error was 6 mm.
 
-The pick-and-place sequence is defined using a finite state machine (FSM), which moves the robot through the main phases of scanning, picking, lifting, placing, and completing the task in smaller steps.
+The pick-and-place sequence is defined using a finite state machine (FSM), which moves the robot through the main stages of scanning, picking, lifting, placing, and completing the task in smaller steps.
 
 oveIt 2 is used for motion planning and execution, allowing the robot to plan and execute arm motions to the detected cube pose and target placement pose, while Isaac Sim provides the simulated robot, camera, and the scene.
 
@@ -91,6 +91,39 @@ ros2 launch piper_x_gripper_moveit_config demo.launch.py
 ```
 
 The Piper X MoveIt configuration in `piperx_arm_sim` already includes the Isaac Sim topic-based ROS 2 control setup, so users do not need to manually modify the MoveIt hardware configuration.
+
+## Run the pick-and-place pipeline
+
+After Isaac Sim is running and MoveIt has been launched, start the pick-and-place pipeline:
+
+```bash
+ros2 launch piperx_control pick_place_sim.launch.py
+```
+
+This launch file starts the ArUco perception node and the pick-and-place control node:
+
+```text
+piperx_perception/aruco_sim_detector
+piperx_control/piperx_sim_control
+```
+
+The `aruco_sim_detector` node detects the cube ArUco marker and the place ArUco marker from the Isaac Sim camera image and publishes their poses relative to the base_link frame. The `piperx_sim_control` node runs the finite state machine (FSM) that moves the robot through the pick-and-place sequence.
+
+### Launch parameters
+
+The launch file includes three configurable parameters:
+
+| Parameter                   | Default | Description                                                                              |
+| --------------------------- | ------: | ---------------------------------------------------------------------------------------- |
+| `marker_size`               | `0.055` | ArUco marker side length in meters.                                                      |
+| `settle_velocity_threshold` | `0.033` | Joint velocity threshold used to decide when the arm has settled after a motion.         |
+| `place_tcp_z`               | `0.040` | TCP z height used when placing the object.                                               |
+
+You can override these parameters from the command line:
+
+```bash
+ros2 launch piperx_control pick_place_sim.launch.py marker_size:=0.055 settle_velocity_threshold:=0.033 place_tcp_z:=0.10
+```
 
 ## Notes
 
